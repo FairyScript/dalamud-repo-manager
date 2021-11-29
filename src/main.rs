@@ -1,34 +1,49 @@
-use serde::Deserialize;
-use std::collections::HashMap;
-
-#[derive(Deserialize, Debug)]
-struct Item {
-    foo: String,
-    bar: String,
-}
-
-type Entry = HashMap<String, Vec<Item>>;
+use futures::{executor::ThreadPool, future::join_all};
+use std::{
+  error::Error,
+  sync::{Arc, RwLock},
+};
+mod lib;
+mod modal;
+use lib::{parse_config, Config};
+use modal::json_repo::{JsonRepo, RepoItem};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let resp = reqwest::get("https://httpbin.org/ip")
-        .await?
-        .json::<HashMap<String, String>>()
-        .await?;
-    println!("{:#?}", resp);
-    println!("{:#?}", resp["origin"]);
+  //read config file
+  let config = parse_config("profile/test.toml").expect("faild to load config");
 
-    let toml_string = r#"
-  [[entry]]
-  foo = "a0"
-  bar = "b0"
+  //let mut repos: JsonRepo = Vec::<RepoItem>::new();
 
-  [[entry]]
-  foo = "a1"
-  bar = "b1"
-  "#;
-    let config: Entry = toml::from_str(toml_string).unwrap();
-    println!("{:#?}", config);
+  let pool = ThreadPool::new().expect("Failed to create threadpool");
 
-    Ok(())
+  //pool.spawn_ok(repo_updater(config, &mut repos));
+
+  let repos = Arc::new(RwLock::new(Vec::<RepoItem>::new()));
+
+  let repos_clone = repos.clone();
+  pool.spawn_ok(repo_updater(config, repos_clone));
+
+  Ok(())
+}
+
+async fn repo_updater(config: Config, repos: Arc<RwLock<Vec<RepoItem>>>) {}
+
+async fn web_server(config: Config, repos: Arc<RwLock<Vec<RepoItem>>>) {}
+
+async fn get_repo(config: Config) -> Result<(), Box<dyn Error>> {
+  let pool = config
+    .repo
+    .iter()
+    .map(|item| get_repo_item(item.url.as_str()));
+
+  join_all(pool).await;
+  Ok(())
+}
+
+async fn get_repo_item(url: &str) -> Result<JsonRepo, Box<dyn Error>> {
+  let resp: JsonRepo = reqwest::get(url).await?.json::<JsonRepo>().await?;
+  println!("{:#?}", resp);
+
+  Ok(resp)
 }

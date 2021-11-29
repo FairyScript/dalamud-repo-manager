@@ -6,6 +6,7 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+futures = {version = "0.3.18", features = ["thread-pool"]}
 reqwest = {version = "0.11", features = ["blocking", "json"]}
 serde = {version = "1.0.130", features = ['derive']}
 tokio = {version = "1", features = ["full"]}
